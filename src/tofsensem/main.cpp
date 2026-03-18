@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
   initSerial(&serial);
 
   NProtocolExtracter extracter;
-  tofsensem::Init init(&extracter);
+  tofsensem::Init init(&extracter, &serial);
   ros::Rate loop_rate(1000);
   while (ros::ok()) {
     auto available_bytes = serial.available();

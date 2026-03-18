@@ -45,6 +45,7 @@ add_message_files(
     LinktrackNodeframe6.msg
     TofsenseMFrame0.msg
     TofsenseMFrame0Pixel.msg
+    TofsenseMCascade.msg
     IotFrame0.msg
     IotFrame0Node.msg
 )

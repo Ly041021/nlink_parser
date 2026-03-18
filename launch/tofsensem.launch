@@ -1,6 +1,11 @@
 <launch>
+  <arg name="port_name" default="/dev/ttyTHS0" />
+  <arg name="baud_rate" default="115200" />
+  <arg name="inquire_mode" default="false" />
+
   <node pkg="nlink_parser" type="tofsensem" name="tofsensem0" output="screen">
-    <param name="port_name" type="str" value="/dev/ttyUSB0" />
-    <param name="baud_rate" type="int" value="921600" />
+    <param name="port_name" type="str" value="$(arg port_name)" />
+    <param name="baud_rate" type="int" value="$(arg baud_rate)" />
+    <param name="inquire_mode" type="bool" value="$(arg inquire_mode)" />
   </node>
 </launch>

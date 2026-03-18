@@ -162,9 +162,11 @@
 参数
    - **`port_name`** 设备串行端口名称，默认值: `/dev/ttyUSB0`.
    - **`baud_rate`** 设备波特率，默认值: `921600`.
+   - **`inquire_mode`** 查询模式开关，用于6个TOFSense-M级联轮询，默认值: `false`（查询频率固定为 `15Hz`）.
 
 发布的话题
 
+  - **`/nlink_tofsensem_cascade`** ([nlink_parser::TofsenseMCascade])
   - **`/nlink_tofsensem_frame0`** ([nlink_parser::TofsenseMFrame0])
 
 
