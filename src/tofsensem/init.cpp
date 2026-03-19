@@ -5,6 +5,11 @@
 #include "nlink_unpack/nlink_utils.h"
 #include "nutils.h"
 
+#include <algorithm>
+#include <cctype>
+#include <exception>
+#include <sstream>
+
 namespace {
 class ProtocolFrame0 : public NLinkProtocolVLength {
 public:
@@ -19,6 +24,7 @@ protected:
       return false;
     return set_length(tofm_frame0_size(data));
   }
+
   void UnpackFrameData(const uint8_t *data) override {
     g_ntsm_frame0.UnpackData(data, length());
   }
@@ -42,8 +48,70 @@ Init::Init(NProtocolExtracter *protocol_extraction, serial::Serial *serial)
     : serial_(serial) {
   is_inquire_mode_ =
       serial_ ? ros::param::param<bool>("~inquire_mode", false) : false;
+  inquire_query_interval_sec_ =
+      ros::param::param<double>("~inquire_query_interval_sec", 0.010);
+
+  if (is_inquire_mode_) {
+    std::string raw_ids =
+        ros::param::param<std::string>("~inquire_ids", "0,1,2,3,4,5");
+    if (!ParseInquireIds(raw_ids, &inquire_ids_) || inquire_ids_.empty()) {
+      ROS_WARN("tofsensem inquire_ids invalid: '%s', disable inquire_mode",
+               raw_ids.c_str());
+      is_inquire_mode_ = false;
+    } else {
+      for (const auto id : inquire_ids_) {
+        inquire_id_mask_[id] = true;
+      }
+      ROS_INFO("tofsensem inquire_mode: ids='%s', query_interval=%.3fs, freq=%dHz",
+               raw_ids.c_str(), std::max(0.001, inquire_query_interval_sec_),
+               frequency_);
+    }
+  }
 
   InitFrame0(protocol_extraction);
+}
+
+bool Init::ParseInquireIds(const std::string &raw, std::vector<uint8_t> *out) const {
+  if (!out) {
+    return false;
+  }
+  out->clear();
+
+  std::array<bool, 256> seen{};
+  std::stringstream ss(raw);
+  std::string token;
+  while (std::getline(ss, token, ',')) {
+    token.erase(std::remove_if(token.begin(), token.end(),
+                               [](unsigned char c) { return std::isspace(c); }),
+                token.end());
+    if (token.empty()) {
+      continue;
+    }
+
+    int value = -1;
+    try {
+      value = std::stoi(token);
+    } catch (const std::exception &) {
+      return false;
+    }
+
+    if (value < 0 || value > 255) {
+      return false;
+    }
+
+    const auto index = static_cast<size_t>(value);
+    if (seen[index]) {
+      continue;
+    }
+    seen[index] = true;
+    out->push_back(static_cast<uint8_t>(value));
+  }
+
+  return !out->empty();
+}
+
+bool Init::IsInquireTargetId(uint8_t id) const {
+  return inquire_id_mask_[id];
 }
 
 void Init::PublishCascadeIfReady(NProtocolBase *protocol) {
@@ -51,14 +119,14 @@ void Init::PublishCascadeIfReady(NProtocolBase *protocol) {
     return;
   }
 
-  for (uint8_t id = 0; id < kInquireNodeCount; ++id) {
+  for (const auto id : inquire_ids_) {
     if (frame0_map_.find(id) == frame0_map_.end()) {
       return;
     }
   }
 
   nlink_parser::TofsenseMCascade msg_cascade;
-  for (uint8_t id = 0; id < kInquireNodeCount; ++id) {
+  for (const auto id : inquire_ids_) {
     msg_cascade.nodes.push_back(frame0_map_.at(id));
   }
   publishers_.at(protocol).publish(msg_cascade);
@@ -96,9 +164,19 @@ void Init::InitFrame0(NProtocolExtracter *protocol_extraction) {
       pixel.dis_status = src_pixel.dis_status;
       pixel.signal_strength = src_pixel.signal_strength;
     }
+
     if (is_inquire_mode_) {
-      if (data.id < kInquireNodeCount) {
+      const bool is_target = IsInquireTargetId(data.id);
+      if (is_target) {
         frame0_map_[data.id] = g_msg_tofmframe0;
+      }
+      ROS_INFO_THROTTLE(1.0,
+                        "rx id=%u, target=%d, got=%zu/%zu",
+                        data.id,
+                        is_target ? 1 : 0,
+                        frame0_map_.size(),
+                        inquire_ids_.size());
+      if (is_target) {
         PublishCascadeIfReady(protocol);
       }
     } else {
@@ -110,24 +188,34 @@ void Init::InitFrame0(NProtocolExtracter *protocol_extraction) {
     timer_scan_ = nh_.createTimer(
         ros::Duration(1.0 / frequency_),
         [=](const ros::TimerEvent &) {
+          timer_read_.stop();
           frame0_map_.clear();
           node_index_ = 0;
           round_published_ = false;
           timer_read_.start();
         },
         false, true);
+
+    const auto query_interval =
+        ros::Duration(std::max(0.001, inquire_query_interval_sec_));
     timer_read_ = nh_.createTimer(
-        ros::Duration(0.006),
+        query_interval,
         [=](const ros::TimerEvent &) {
-          if (node_index_ >= kInquireNodeCount) {
+          if (!serial_) {
             timer_read_.stop();
-          } else {
-            g_command_read.id = node_index_;
-            auto data = reinterpret_cast<uint8_t *>(&g_command_read);
-            NLink_UpdateCheckSum(data, sizeof(g_command_read));
-            serial_->write(data, sizeof(g_command_read));
-            ++node_index_;
+            return;
           }
+
+          if (node_index_ >= inquire_ids_.size()) {
+            timer_read_.stop();
+            return;
+          }
+
+          g_command_read.id = inquire_ids_[node_index_];
+          auto raw = reinterpret_cast<uint8_t *>(&g_command_read);
+          NLink_UpdateCheckSum(raw, sizeof(g_command_read));
+          serial_->write(raw, sizeof(g_command_read));
+          ++node_index_;
         },
         false, false);
   }
