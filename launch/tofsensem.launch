@@ -2,14 +2,10 @@
   <arg name="port_name" default="/dev/ttyTHS0" />
   <arg name="baud_rate" default="921600" />
   <arg name="inquire_mode" default="false" />
-  <arg name="inquire_ids" default="0,1,2,3,4,5" />
-  <arg name="inquire_query_interval_sec" default="0.010" />
 
   <node pkg="nlink_parser" type="tofsensem" name="tofsensem0" output="screen">
     <param name="port_name" type="str" value="$(arg port_name)" />
     <param name="baud_rate" type="int" value="$(arg baud_rate)" />
     <param name="inquire_mode" type="bool" value="$(arg inquire_mode)" />
-    <param name="inquire_ids" type="str" value="$(arg inquire_ids)" />
-    <param name="inquire_query_interval_sec" type="double" value="$(arg inquire_query_interval_sec)" />
   </node>
 </launch>

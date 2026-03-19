@@ -163,8 +163,6 @@
    - **`port_name`** 设备串行端口名称，默认值: `/dev/ttyUSB0`.
    - **`baud_rate`** 设备波特率，默认值: `921600`.
    - **`inquire_mode`** 查询模式开关，用于6个TOFSense-M级联轮询，默认值: `false`（查询频率固定为 `15Hz`）。
-   - **`inquire_ids`** 查询ID列表（逗号分隔），默认值: `0,1,2,3,4,5`。
-   - **`inquire_query_interval_sec`** 相邻查询命令间隔（秒），默认值: `0.010`。
 
 发布的话题
 
