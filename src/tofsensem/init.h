@@ -17,13 +17,16 @@ public:
 
 private:
   void InitFrame0(NProtocolExtracter *protocol_extraction);
+  void PublishCascadeIfReady(NProtocolBase *protocol);
 
   std::unordered_map<NProtocolBase *, ros::Publisher> publishers_;
   std::map<int, nlink_parser::TofsenseMFrame0> frame0_map_;
 
   serial::Serial *serial_;
+  bool round_published_ = false;
 
   const int frequency_ = 15;
+  static constexpr uint8_t kInquireNodeCount = 6;
   bool is_inquire_mode_ = false;
 
   ros::NodeHandle nh_;

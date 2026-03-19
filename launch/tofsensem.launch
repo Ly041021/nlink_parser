@@ -1,6 +1,6 @@
 <launch>
   <arg name="port_name" default="/dev/ttyTHS0" />
-  <arg name="baud_rate" default="115200" />
+  <arg name="baud_rate" default="921600" />
   <arg name="inquire_mode" default="false" />
 
   <node pkg="nlink_parser" type="tofsensem" name="tofsensem0" output="screen">

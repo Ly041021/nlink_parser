@@ -46,6 +46,25 @@ Init::Init(NProtocolExtracter *protocol_extraction, serial::Serial *serial)
   InitFrame0(protocol_extraction);
 }
 
+void Init::PublishCascadeIfReady(NProtocolBase *protocol) {
+  if (round_published_) {
+    return;
+  }
+
+  for (uint8_t id = 0; id < kInquireNodeCount; ++id) {
+    if (frame0_map_.find(id) == frame0_map_.end()) {
+      return;
+    }
+  }
+
+  nlink_parser::TofsenseMCascade msg_cascade;
+  for (uint8_t id = 0; id < kInquireNodeCount; ++id) {
+    msg_cascade.nodes.push_back(frame0_map_.at(id));
+  }
+  publishers_.at(protocol).publish(msg_cascade);
+  round_published_ = true;
+}
+
 void Init::InitFrame0(NProtocolExtracter *protocol_extraction) {
   static auto protocol = new ProtocolFrame0;
   protocol_extraction->AddProtocol(protocol);
@@ -78,7 +97,10 @@ void Init::InitFrame0(NProtocolExtracter *protocol_extraction) {
       pixel.signal_strength = src_pixel.signal_strength;
     }
     if (is_inquire_mode_) {
-      frame0_map_[data.id] = g_msg_tofmframe0;
+      if (data.id < kInquireNodeCount) {
+        frame0_map_[data.id] = g_msg_tofmframe0;
+        PublishCascadeIfReady(protocol);
+      }
     } else {
       publishers_.at(protocol).publish(g_msg_tofmframe0);
     }
@@ -90,20 +112,14 @@ void Init::InitFrame0(NProtocolExtracter *protocol_extraction) {
         [=](const ros::TimerEvent &) {
           frame0_map_.clear();
           node_index_ = 0;
+          round_published_ = false;
           timer_read_.start();
         },
         false, true);
     timer_read_ = nh_.createTimer(
         ros::Duration(0.006),
         [=](const ros::TimerEvent &) {
-          if (node_index_ >= 6) {
-            if (!frame0_map_.empty()) {
-              nlink_parser::TofsenseMCascade msg_cascade;
-              for (const auto &msg : frame0_map_) {
-                msg_cascade.nodes.push_back(msg.second);
-              }
-              publishers_.at(protocol).publish(msg_cascade);
-            }
+          if (node_index_ >= kInquireNodeCount) {
             timer_read_.stop();
           } else {
             g_command_read.id = node_index_;
