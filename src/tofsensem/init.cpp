@@ -95,7 +95,7 @@ void Init::InitFrame0(NProtocolExtracter *protocol_extraction) {
         },
         false, true);
     timer_read_ = nh_.createTimer(
-        ros::Duration(0.006),
+        ros::Duration(0.009),
         [=](const ros::TimerEvent &) {
           if (node_index_ >= 6) {
             if (!frame0_map_.empty()) {
